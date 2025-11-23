@@ -25,7 +25,7 @@ tasks.jar {
         //attributes["Premain-Class"] = "com.aurora.agent.ClasspathAgent"
         attributes["Can-Redefine-Classes"] = "true"
         attributes["Can-Retransform-Classes"] = "true"
-        attributes["Main-Class"] = "com.aurora.Loader"
+        attributes["Main-Class"] = "dev.badkraft.aurora.Loader"
     }
 
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE

@@ -74,3 +74,6 @@ minecraft/*.jar
 # If you add other tracked files under run/minecraft, add explicit !rules for them here.
 # Example: !run/minecraft/some-template.conf
 run/minecraft/options.txt
+*.gz
+proguard_mc.txt
+aurora-mvp/mappings/1.21.10.official.aurora
