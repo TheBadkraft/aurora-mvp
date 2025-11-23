@@ -67,6 +67,7 @@ public class MinecraftAuth {
         XstsResponse  xsts    = getXsts(xbl.Token);
         McAuthResponse mc     = authenticateMinecraft(getUhs(xbl.DisplayClaims), xsts.Token);
         McProfile     profile = getProfile(mc.access_token);
+        String xuid           = getXuid(xbl.DisplayClaims);
 
         Path config = Paths.get("config.aurora");
         String content = """
@@ -77,6 +78,7 @@ public class MinecraftAuth {
                   refresh_token := "%s"
                   username      := "%s"
                   uuid          := "%s"
+                  xuid          := "%s"
                   client_id     := "%s"
                   expires_at    := %d
                 }
@@ -85,11 +87,24 @@ public class MinecraftAuth {
                 ms.refresh_token,
                 profile.name,
                 profile.id,
+                xuid,
                 MC_CLIENT_ID,
                 Instant.now().getEpochSecond() + mc.expires_in
         );
         Files.writeString(config, content);
         log("[Aurora] Login successful – config.aurora written.");
+    }
+
+    private static String getXuid(JsonObject claims) {
+        JsonArray xui = claims.getAsJsonArray("xui");
+        if (xui == null || xui.isEmpty()) {
+            log("[Auth] No xui array — this should not happen");
+            return "2535444887286849";
+        }
+        JsonObject user = xui.get(0).getAsJsonObject();
+        // 2024–2025: Microsoft removed "xid", only "uhs" is returned
+        // Minecraft accepts the raw uhs as auth_xuid
+        return user.get("uhs").getAsString();
     }
 
     public static void refreshSession() throws Exception {

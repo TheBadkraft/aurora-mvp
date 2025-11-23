@@ -17,6 +17,7 @@ public class Loader {
     public  static final String MC_VERSION = "1.21.10";
     private static final Gson GSON = new GsonBuilder().create();
     private static final boolean DEBUG = Boolean.getBoolean("aurora.debug");
+    private static final String AURORA_MAPPINGS = "mc-" + MC_VERSION + ".official.aurora";
 
     // LOGGING
     public static void log(String msg, Object ... args) {
@@ -31,6 +32,7 @@ public class Loader {
     public static void main(String[] args) throws Exception {
         boolean vanilla = false;
         boolean buildMaps = false;
+        boolean hasMappings = Files.exists(Paths.get("mappings", AURORA_MAPPINGS));
 
         // Validate system properties
         log("minecraft.version: %s", System.getProperty("minecraft.version"));
@@ -43,7 +45,7 @@ public class Loader {
             if ("--build-maps".equals(arg)) buildMaps = true;
         }
 
-        if (buildMaps) {
+        if (buildMaps || !hasMappings) {
             // can't do both
             vanilla = false;
 
@@ -51,7 +53,7 @@ public class Loader {
             Path dotMinecraft = findDotMinecraft();
             assert dotMinecraft != null;
             Path vanillaJar = dotMinecraft.resolve("versions").resolve(MC_VERSION).resolve(MC_VERSION + ".jar");
-            Path mappingsFile = Paths.get("aurora-mvp", "mappings", MC_VERSION + ".official.aurora");
+            Path mappingsFile = Paths.get("mappings", "mc-" + MC_VERSION + ".official.aurora");
             MappingBuilder.generateMappings(vanillaJar, mappingsFile);
             log("Mappings generated at %s", mappingsFile);
             return;
@@ -71,7 +73,7 @@ public class Loader {
         }
 
         Path vanillaJar = dotMinecraft.resolve("versions").resolve(MC_VERSION).resolve(MC_VERSION + ".jar");
-        Path mappingsFile = auroraRoot.resolve("mappings").resolve(MC_VERSION + ".official.aurora");
+        Path mappingsFile = auroraRoot.resolve("mappings").resolve("mc-" + MC_VERSION + ".official.aurora");
 
         // Build mappings if missing
         if (!Files.exists(mappingsFile) && !vanilla) {
@@ -117,7 +119,12 @@ public class Loader {
             e.printStackTrace();
         }
     }
-    private record Session(String accessToken, String username, String uuid, String clientid) {}
+    private record Session(
+            String accessToken,
+            String username,
+            String uuid,
+            String clientId,
+            String xuId) {}
     private static Session loadSession() throws Exception {
         Path config = Paths.get("config.aurora");
         // if config.aurora does not exist, perform login
@@ -130,10 +137,9 @@ public class Loader {
         AnvilModule module = Anvil.parse(config);
         AnvilObject auth = module.getObject("auth").asObject();
 
-        // NEW: Check if token is expired
-        // String content = Files.readString(config);
         String expiresAtStr = auth.getString("expires_at");
         if (expiresAtStr != null) {
+            // this step is the first time we need to persist changes back to config.aurora
             long expiresAt = Long.parseLong(expiresAtStr);
             long now = System.currentTimeMillis() / 1000;
             if (now >= expiresAt) {
@@ -148,7 +154,8 @@ public class Loader {
                 auth.getString("access_token"),
                 auth.getString("username"),
                 auth.getString("uuid").replace("-", ""),
-                auth.getString("client_id")
+                auth.getString("client_id"),
+                auth.getString("xuid")
         );
     }
     private static String buildClasspathFromVersionJson(Path versionJson, Path dotMinecraft) throws Exception {
@@ -220,12 +227,12 @@ public class Loader {
                 switch (value) {
                     case "${version_name}"       -> args.set(i, MC_VERSION);
                     case "${version_type}"       -> args.set(i, "release");
-                    case "${auth_player_name}"   -> args.set(i, session.username);
-                    case "${auth_uuid}"          -> args.set(i, session.uuid);
-                    case "${auth_access_token}"  -> args.set(i, session.accessToken);
+                    case "${auth_player_name}"   -> args.set(i, session.username.replace("\"", ""));
+                    case "${auth_uuid}"          -> args.set(i, session.uuid.replace("\"", ""));
+                    case "${auth_access_token}"  -> args.set(i, session.accessToken.replace("\"", ""));
                     case "${user_type}"          -> args.set(i, "msa");
                     case "${clientid}"           -> args.set(i, "00000000441cc96b");           // REQUIRED
-                    case "${auth_xuid}"          -> args.set(i, "2535444887286849");            // optional but nice
+                    case "${auth_xuid}"          -> args.set(i, session.xuId.replace("\"", ""));            // optional but nice
                     case "${game_directory}"     -> args.set(i, paths.gameDir().toString());
                     case "${assets_root}"        -> args.set(i, paths.assetsRoot().toString()); // ← CORRECT
                     case "${assets_index_name}"  -> args.set(i, assetIndex);
