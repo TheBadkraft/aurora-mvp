@@ -41,3 +41,11 @@ tasks.jar {
     // Explicitly merge anvil-engine
     from(zipTree(file("../anvil-engine/build/libs/anvil-engine-0.1.3.jar")))
 }
+
+tasks.clean {
+    doFirst {
+        fileTree("logs").matching {
+            include("**/*.log")
+        }.forEach { it.delete() }
+    }
+}

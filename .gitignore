@@ -56,8 +56,11 @@ Thumbs.db
 # Local secrets     #
 # ================ #
 # Ignore the local secret config file at the repo root
+/mappings/reflection/
 /config.aurora
-/options.txt
+
+# Temp files
+mappings/raw/proguard_mc.txt
 
 # Ignore top-level minecraft folder (local runtime)
 minecraft/
@@ -75,5 +78,3 @@ minecraft/*.jar
 # Example: !run/minecraft/some-template.conf
 run/minecraft/options.txt
 *.gz
-proguard_mc.txt
-aurora-mvp/mappings/1.21.10.official.aurora
