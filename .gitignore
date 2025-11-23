@@ -43,4 +43,32 @@ local.properties
 
 # OS-specific files
 .DS_Store
-Thumbs.db   
+Thumbs.db
+
+# ========================= #
+# Minecraft / runtime rules #
+# ========================= #
+# Do not commit the actual runtime minecraft/ directory or any jars you download locally.
+# Copying the Minecraft .jar to the repo will violate the EULA and we will not be able to 
+# continue working on Aurora-MVP.
+
+# ================ #
+# Local secrets     #
+# ================ #
+# Ignore the local secret config file at the repo root
+/config.aurora
+
+# Ignore top-level minecraft folder (local runtime)
+minecraft/
+# Also ignore any jars inside any minecraft folder
+minecraft/**/*.jar
+minecraft/*.jar
+
+# But allow a small repo-hosted template directory where we keep instructions/templates:
+!run/minecraft/
+# Track specific files in that template dir (README + helper script)
+!run/minecraft/README.md
+!run/minecraft/.gitkeep
+
+# If you add other tracked files under run/minecraft, add explicit !rules for them here.
+# Example: !run/minecraft/some-template.conf
