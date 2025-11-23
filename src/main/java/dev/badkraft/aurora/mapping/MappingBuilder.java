@@ -1,0 +1,124 @@
+// File: loader/src/main/java/com/aurora/reflect/MappingBuilder.java
+package dev.badkraft.aurora.mapping;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.*;
+import java.util.*;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+
+public class MappingBuilder {
+    private static final HttpClient HTTP = HttpClient.newHttpClient();
+    private static final String MOJANG_MAPPINGS_URL = "https://piston-data.mojang.com/v1/objects/0530a206839eb1e9b35ec86acbbe394b07a2d9fb/client.txt";
+
+    public static void generateMappings(Path vanillaJar, Path mappingsOut) throws Exception {
+        if (!Files.exists(vanillaJar))  {
+            throw new FileNotFoundException("Vanilla JAR not found: " + vanillaJar);
+        }
+
+        System.out.println("[Aurora] Generating mappings from " + vanillaJar);
+        Files.createDirectories(mappingsOut.getParent());
+
+        // Download Mojang mappings
+        List<String> proguardLines = downloadMojangMappings();
+
+        try (JarFile jar = new JarFile(vanillaJar.toFile());
+             URLClassLoader classLoader = new URLClassLoader(new URL[]{vanillaJar.toUri().toURL()}, null);
+             var writer = Files.newBufferedWriter(mappingsOut)) {
+
+            writer.write("#!aurora aml\n\n");
+
+            java.nio.file.Files.write(
+                    java.nio.file.Paths.get("proguard_mc.txt"),
+                    proguardLines
+            );
+            return;
+
+//            jar.stream()
+//                    .filter(e -> e.getName().endsWith(".class") && !e.getName().contains("$"))
+//                    .forEach(entry -> {
+//                        try {
+//                            String className = entry.getName().replace("/", ".").substring(0, entry.getName().length() - 6);
+//                            Class<?> clazz = Class.forName(className, false, classLoader);
+//
+//                            String simpleName = clazz.getSimpleName();
+//                            writer.write("class " + className + " -> " + simpleName + "\n");
+//
+//                            for (Method m : clazz.getDeclaredMethods()) {
+//                                if (Modifier.isStatic(m.getModifiers())) continue;
+//                                if (m.isSynthetic()) continue;
+//
+//                                String sig = m.getName() + buildDescriptor(m);
+//                                writer.write("method " + sig + " -> " + m.getName() + "\n");
+//                            }
+//                            writer.write("\n");
+//                        } catch (Throwable t) {
+//                            // Skip unloadable classes
+//                        }
+//                    });
+        }
+
+//        System.out.println("[Aurora] Mappings written to " + mappingsOut);
+    }
+
+    private static List<String> downloadMojangMappings() throws Exception {
+        System.out.println("[Aurora] Downloading Mojang ProGuard mappings...");
+        HttpRequest request = HttpRequest.newBuilder(URI.create(MOJANG_MAPPINGS_URL)).GET().build();
+        HttpResponse<String> resp = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) {
+            throw new IOException("Failed to download mappings: HTTP " + resp.statusCode());
+        }
+        return resp.body().lines().toList();
+    }
+
+    private static String getDeobfClassName(String obfClass, List<String> proguardLines) {
+        for (String line : proguardLines) {
+            if (line.endsWith(":") && line.contains(" -> " + obfClass + ":")) {
+                String deobf = line.substring(0, line.indexOf(" -> "));
+                int lastDot = deobf.lastIndexOf('.');
+                return lastDot == -1 ? deobf : deobf.substring(lastDot + 1);
+            }
+        }
+        return obfClass; // fallback
+    }
+
+    private static String buildDescriptor(Method m) {
+        StringBuilder sb = new StringBuilder("(");
+        for (Class<?> p : m.getParameterTypes()) {
+            sb.append(typeToSig(p));
+        }
+        sb.append(")");
+        sb.append(typeToSig(m.getReturnType()));
+        return sb.toString();
+    }
+
+    private static String typeToSig(Class<?> c) {
+        if (c.isPrimitive()) {
+            return switch (c.getName()) {
+                case "void" -> "V";
+                case "boolean" -> "Z";
+                case "byte" -> "B";
+                case "char" -> "C";
+                case "short" -> "S";
+                case "int" -> "I";
+                case "float" -> "F";
+                case "long" -> "J";
+                case "double" -> "D";
+                default -> throw new IllegalArgumentException();
+            };
+        } else if (c.isArray()) {
+            return "[" + typeToSig(c.getComponentType());
+        } else {
+            return "L" + c.getName() + ";";
+        }
+    }
+}

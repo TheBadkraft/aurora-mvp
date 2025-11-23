@@ -1,0 +1,7 @@
+#!aml
+
+modid := "badkraft"
+
+block := {
+   name := "titanium_ore"
+}
