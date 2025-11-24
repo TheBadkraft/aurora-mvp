@@ -63,7 +63,7 @@ Thumbs.db
 mappings/raw/proguard_mc.txt
 
 # Ignore top-level minecraft folder (local runtime)
-minecraft/
+run/minecraft/
 # Also ignore any jars inside any minecraft folder
 minecraft/**/*.jar
 minecraft/*.jar
