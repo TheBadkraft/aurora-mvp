@@ -1,4 +1,24 @@
-// File: loader/src/main/java/com/aurora/reflect/MappingBuilder.java
+/// src/main/java/dev/badkraft/aurora/mapping/MappingBuilder.java
+///
+/// Copyright (c) 2025 Quantum Override. All rights reserved.
+/// Author: The Badkraft
+/// Date: November 18, 2025
+/// MIT License
+/// Permission is hereby granted, free of charge, to any person obtaining a copy
+/// of this software and associated documentation files (the "Software"), to deal
+/// in the Software without restriction, including without limitation the rights
+/// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+/// copies of the Software, and to permit persons to whom the Software is
+/// furnished to do so, subject to the following conditions:
+/// The above copyright notice and this permission notice shall be included in all
+/// copies or substantial portions of the Software.
+/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+/// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+/// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+/// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+/// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+/// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+/// SOFTWARE.
 package dev.badkraft.aurora.mapping;
 
 import java.io.FileNotFoundException;
@@ -17,12 +37,15 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 import static dev.badkraft.aurora.Loader.log;
+import static dev.badkraft.aurora.Loader.MC_VERSION;
 
 public class MappingBuilder {
     private static final HttpClient HTTP = HttpClient.newHttpClient();
     private static final String MOJANG_MAPPINGS_URL = "https://piston-data.mojang.com/v1/objects/0530a206839eb1e9b35ec86acbbe394b07a2d9fb/client.txt";
+    private static final String PROGUARD_MAPPINGS = "mc-" + MC_VERSION + "-proguard.txt";
 
-    public static void generateMappings(Path vanillaJar, Path mappingsOut) throws Exception {
+    // ignoring this function for now ... working out the algorithm to generate better mappings
+    public static void XgenerateMappings(Path vanillaJar, Path mappingsOut) throws Exception {
         if (!Files.exists(vanillaJar))  {
             throw new FileNotFoundException("Vanilla JAR not found: " + vanillaJar);
         }
@@ -69,6 +92,53 @@ public class MappingBuilder {
         log("[Aurora] Mappings written -> %s", mappingsOut);
     }
 
+    public static void generateMappings(Path vanillaJar, Path auroraOut) throws Exception {
+        log("Generating official Aurora mappings → %s", auroraOut);
+
+        Path progruardMappings = Paths.get("mappings", "aurora", PROGUARD_MAPPINGS);
+        List<String> proguardLines = new ArrayList<>();
+        // if we have the proguard file, no need to download again - use it
+        if (Files.exists(progruardMappings)) {
+            log("Using cached ProGuard mappings → %s", progruardMappings);
+            proguardLines = Files.readAllLines(progruardMappings);
+        } else {
+            proguardLines = downloadMojangMappings();
+        }
+        if (proguardLines.isEmpty()) {
+            log("Failed to obtain ProGuard mappings");
+            throw new IOException("Failed to obtain ProGuard mappings");
+        }
+
+        Map<String, String> obfToNamed = parseProGuardClassMap(proguardLines);
+
+        // Save raw ProGuard for audit (optional, but clean)
+        Path rawOut = auroraOut.resolveSibling("mc-1.21.10-proguard.txt");
+        Files.createDirectories(rawOut.getParent());
+        Files.write(rawOut, proguardLines);
+        log("[Aurora] Raw ProGuard saved → %s", rawOut);
+
+        // Start building pure AML
+        StringBuilder aml = new StringBuilder();
+        aml.append("#!aml\n\n");
+        aml.append("@[version=\"").append(MC_VERSION).append("\"\n");
+        aml.append("@[generated=\"").append(java.time.LocalDate.now()).append("\"\n");
+        aml.append("@[source=\"mojang-official+reflection\"\n\n");
+        aml.append("comment = \"Aurora Official Mappings — Pure AML\"\n\n");
+
+        // We'll add real classes soon — for now, one real one
+        aml.append("net.minecraft.client.Minecraft := {\n");
+        aml.append("    comment = \"The main client class\"\n");
+        aml.append("\n");
+        aml.append("    instance @[static field returns=\"Minecraft\"] := {\n");
+        aml.append("        obf := \"f_91002_\"\n");
+        aml.append("    }\n");
+        aml.append("}\n");
+
+        Files.createDirectories(auroraOut.getParent());
+        Files.writeString(auroraOut, aml.toString());
+        log("[Aurora] Generated minimal .aurora → %s", auroraOut);
+    }
+
     private static List<String> downloadMojangMappings() throws Exception {
         log("Downloading Mojang ProGuard mappings...");
         HttpRequest request = HttpRequest.newBuilder(URI.create(MOJANG_MAPPINGS_URL)).GET().build();
@@ -78,7 +148,40 @@ public class MappingBuilder {
         }
         return resp.body().lines().toList();
     }
+    private static Map<String, String> parseProGuardClassMap(List<String> lines) {
+        Map<String, String> obfToNamed = new HashMap<>();
 
+        String currentObfClass = null;
+
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+
+            // Class mapping: "net.minecraft.class_757 -> net.minecraft.client.Minecraft:"
+            if (line.contains("->") && line.endsWith(":")) {
+                String[] parts = line.split("->");
+                if (parts.length != 2) continue;
+
+                String obfPart = parts[0].trim();           // "net.minecraft.class_757 "
+                String namedPart = parts[1].trim();         // " net.minecraft.client.Minecraft:"
+
+                // Clean up
+                obfPart = obfPart.replace(" ", "");
+                namedPart = namedPart.replace(":", "").trim();
+
+                // Convert / to . if needed (ProGuard uses .)
+                String obfKey = obfPart.replace("/", ".");
+                String namedKey = namedPart.replace("/", ".");
+
+                obfToNamed.put(obfKey, namedKey);
+                currentObfClass = obfKey;
+            }
+        }
+
+        return obfToNamed;
+    }
     private static String getDeobfClassName(String obfClass, List<String> proguardLines) {
         for (String line : proguardLines) {
             if (line.endsWith(":") && line.contains(" -> " + obfClass + ":")) {

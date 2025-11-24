@@ -1,3 +1,25 @@
+/// src/main/java/dev/badkraft/aurora/Loader.java
+///
+/// Copyright (c) 2025 Quantum Override. All rights reserved.
+/// Author: The Badkraft
+/// Date: November 12, 2025
+///
+/// MIT License
+/// Permission is hereby granted, free of charge, to any person obtaining a copy
+/// of this software and associated documentation files (the "Software"), to deal
+/// in the Software without restriction, including without limitation the rights
+/// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+/// copies of the Software, and to permit persons to whom the Software is
+/// furnished to do so, subject to the following conditions:
+/// The above copyright notice and this permission notice shall be included in all
+/// copies or substantial portions of the Software.
+/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+/// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+/// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+/// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+/// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+/// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+/// SOFTWARE.
 package dev.badkraft.aurora;
 
 import dev.badkraft.aurora.auth.MinecraftAuth;
@@ -12,27 +34,27 @@ import java.net.URLClassLoader;
 import java.nio.file.*;
 import java.util.*;
 
+import static dev.badkraft.aurora.utils.AuroraLogger.debug;
+import static dev.badkraft.aurora.utils.AuroraLogger.info;
+import static dev.badkraft.aurora.utils.Directories.*;
+
 public class Loader {
     private static final String AMVP_VERSION = "0.3.1";
     public  static final String MC_VERSION = "1.21.10";
     private static final Gson GSON = new GsonBuilder().create();
     private static final boolean DEBUG = Boolean.getBoolean("aurora.debug");
-    private static final String AURORA_MAPPINGS = "mc-" + MC_VERSION + ".official.aurora";
+    private static final String AURORA_MAPPINGS = MAPPINGS_DIR.resolve("mc-" + MC_VERSION + "-official.aurora").toString();
 
-    // LOGGING
+    // Logging
     public static void log(String msg, Object ... args) {
-        System.out.printf("[Aurora] " + msg + "%n", args);
-    }
-    public static void debug(String msg, Object ... args) {
-        if (DEBUG) {
-            System.out.printf("[Aurora:debug] " + msg + "%n", args);
-        }
+        info(msg, args);
     }
 
     public static void main(String[] args) throws Exception {
         boolean vanilla = false;
         boolean buildMaps = false;
-        boolean hasMappings = Files.exists(Paths.get("mappings", AURORA_MAPPINGS));
+        Path mappingsFile = Paths.get(AURORA_MAPPINGS);
+        boolean hasMappings = Files.exists(mappingsFile);
 
         // Validate system properties
         log("minecraft.version: %s", System.getProperty("minecraft.version"));
@@ -42,21 +64,33 @@ public class Loader {
 
         for (String arg : args) {
             if ("--vanilla".equals(arg)) vanilla = true;
-            if ("--build-maps".equals(arg)) buildMaps = true;
+            if ("--build-maps".equals(arg)  || !hasMappings) buildMaps = true;
         }
 
-        if (buildMaps || !hasMappings) {
-            // can't do both
-            vanilla = false;
+        Path dotMinecraft = DOT_MINECRAFT_DIR;
+        if (buildMaps) {
+            if (!hasMappings) {
+                log("No mappings found at %s — generating...", mappingsFile);
+            } else {
+                log("`--build-maps` requested — generating mappings...");
+            }
+            if (dotMinecraft == null) {
+                throw new IllegalStateException(".minecraft not found — cannot build mappings");
+            }
+            Path vanillaJar = dotMinecraft
+                    .resolve("versions")
+                    .resolve(MC_VERSION)
+                    .resolve(MC_VERSION + ".jar");
+            if (!Files.exists(vanillaJar)) {
+                throw new FileNotFoundException("Vanilla JAR not found: " + vanillaJar);
+            }
 
-            // --build-maps: generate mappings and exit
-            Path dotMinecraft = findDotMinecraft();
-            assert dotMinecraft != null;
-            Path vanillaJar = dotMinecraft.resolve("versions").resolve(MC_VERSION).resolve(MC_VERSION + ".jar");
-            Path mappingsFile = Paths.get("mappings", "mc-" + MC_VERSION + ".official.aurora");
             MappingBuilder.generateMappings(vanillaJar, mappingsFile);
-            log("Mappings generated at %s", mappingsFile);
-            return;
+            log("[Aurora] Mappings generated → %s", mappingsFile);
+            if (buildMaps) {
+                log("[Aurora] --build-maps complete. Exiting.");
+                return;
+            }
         }
 
         if (vanilla) {
@@ -67,18 +101,11 @@ public class Loader {
 
         // Normal launch with mappings (if needed)
         Path auroraRoot = Paths.get(System.getProperty("aurora.home", "aurora-mvp")).toAbsolutePath();
-        Path dotMinecraft = findDotMinecraft();
         if (dotMinecraft == null) {
             throw new IllegalStateException("Could not find .minecraft directory");
         }
 
         Path vanillaJar = dotMinecraft.resolve("versions").resolve(MC_VERSION).resolve(MC_VERSION + ".jar");
-        Path mappingsFile = auroraRoot.resolve("mappings").resolve("mc-" + MC_VERSION + ".official.aurora");
-
-        // Build mappings if missing
-        if (!Files.exists(mappingsFile) && !vanilla) {
-            MappingBuilder.generateMappings(vanillaJar, mappingsFile);
-        }
 
         // TODO: Load mappings into MethodHandle cache when ready
         // ReflectionMapper.buildCache(mappingsFile);
@@ -178,14 +205,6 @@ public class Loader {
         }
         return String.join(":", cp);
     }
-    private static Path findDotMinecraft() {
-        Path p = Paths.get(System.getProperty("user.home"), ".minecraft");
-        if (Files.isDirectory(p)) {
-            debug(".minecraft contents: %s", Arrays.toString(p.toFile().list()));
-            return p;
-        }
-        return null;
-    }
     private static void symlinkIfNeeded(Path link, Path target, String name) throws IOException {
         if (Files.exists(link)) {
             if (Files.isSymbolicLink(link) && Files.readSymbolicLink(link).equals(target)) return;
@@ -262,12 +281,12 @@ public class Loader {
             Path versionJson       // ~/.minecraft/versions/1.21.10/1.21.10.json
     ) {
         static LaunchPaths build() throws IOException {
-            Path dotMinecraft = findDotMinecraft();
+            Path dotMinecraft = DOT_MINECRAFT_DIR;
             if (dotMinecraft == null) {
                 throw new IllegalStateException("Could not find .minecraft directory");
             }
 
-            Path gameDir = Paths.get("").toAbsolutePath().resolve("run/minecraft");
+            Path gameDir = RUN_DIR;
             Path assetsRoot = gameDir.resolve("assets");
             Path versionJson = dotMinecraft
                     .resolve("versions")
@@ -278,14 +297,14 @@ public class Loader {
                 throw new IllegalStateException("Missing version JSON: " + versionJson);
             }
 
-            // Clean run dir
-            if (Files.exists(gameDir)) {
-                try (var stream = Files.walk(gameDir)) {
-                    stream.sorted(Comparator.reverseOrder())
-                            .map(Path::toFile)
-                            .forEach(File::delete);
-                } catch (Exception ignored) {}
-            }
+            // Clean run dir ... not unless we want to do something like resetting game directory
+//            if (Files.exists(gameDir)) {
+//                try (var stream = Files.walk(gameDir)) {
+//                    stream.sorted(Comparator.reverseOrder())
+//                            .map(Path::toFile)
+//                            .forEach(File::delete);
+//                } catch (Exception ignored) {}
+//            }
 
             Files.createDirectories(gameDir);
             Files.createDirectories(assetsRoot);
