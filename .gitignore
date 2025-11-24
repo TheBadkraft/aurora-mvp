@@ -61,6 +61,7 @@ Thumbs.db
 
 # Temp files
 run/minecraft/mappings/raw/proguard_mc.txt
+*proguard.txt
 
 # Ignore top-level minecraft folder (local runtime)
 run/minecraft/
