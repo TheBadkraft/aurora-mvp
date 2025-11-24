@@ -56,23 +56,16 @@ Thumbs.db
 # Local secrets     #
 # ================ #
 # Ignore the local secret config file at the repo root
-/run/minecraft/mappings/reflection/
 /config.aurora
-
-# Temp files
-run/minecraft/mappings/raw/proguard_mc.txt
-
-# Ignore top-level minecraft folder (local runtime)
 run/minecraft/
 # Also ignore any jars inside any minecraft folder
 minecraft/**/*.jar
 minecraft/*.jar
 
-# But allow a small repo-hosted template directory where we keep instructions/templates:
-!run/minecraft/
-# Track specific files in that template dir (README + helper script)
-!run/minecraft/README.md
-!run/minecraft/.gitkeep
+# Ignore runtime contents but keep repo-hosted template files
+/run/minecraft/**
+!/run/minecraft/.gitkeep
+!/run/minecraft/README.md
 
 # If you add other tracked files under run/minecraft, add explicit !rules for them here.
 # Example: !run/minecraft/some-template.conf
