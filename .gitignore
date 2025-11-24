@@ -56,11 +56,11 @@ Thumbs.db
 # Local secrets     #
 # ================ #
 # Ignore the local secret config file at the repo root
-/mappings/reflection/
+/run/minecraft/mappings/reflection/
 /config.aurora
 
 # Temp files
-mappings/raw/proguard_mc.txt
+run/minecraft/mappings/raw/proguard_mc.txt
 
 # Ignore top-level minecraft folder (local runtime)
 minecraft/

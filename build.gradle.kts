@@ -42,6 +42,20 @@ tasks.jar {
     from(zipTree(file("../anvil-engine/build/libs/anvil-engine-0.1.3.jar")))
 }
 
+tasks.named<JavaExec>("run") {
+    jvmArgs = listOf(
+        "-javaagent:${layout.buildDirectory.file("libs/aurora-mvp.jar").get().asFile}",
+        "-Daurora.project.root=${project.projectDir}")
+}
+
+tasks.jar {
+    manifest {
+        attributes["Premain-Class"] = "dev.badkraft.aurora.agent.RuntimeAgent"
+        attributes["Can-Redefine-Classes"] = "true"
+        attributes["Can-Retransform-Classes"] = "true"
+    }
+}
+
 tasks.clean {
     doFirst {
         fileTree("logs").matching {
