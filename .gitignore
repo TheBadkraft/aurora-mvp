@@ -56,7 +56,7 @@ Thumbs.db
 # Local secrets     #
 # ================ #
 # Ignore the local secret config file at the repo root
-/run/minecraft/mappings/reflection/
+/run/minecraft/
 /config.aurora
 
 # Temp files
