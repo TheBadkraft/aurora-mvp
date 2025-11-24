@@ -57,7 +57,8 @@ Thumbs.db
 # ================ #
 # Ignore the local secret config file at the repo root
 /config.aurora
-run/minecraft/
+# Ignore top-level minecraft folder (local runtime)
+run/minecraft
 # Also ignore any jars inside any minecraft folder
 minecraft/**/*.jar
 minecraft/*.jar
