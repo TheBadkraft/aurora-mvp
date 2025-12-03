@@ -145,11 +145,12 @@ public class MinecraftAuth {
             return;
         }
 
-        TokenResponse ms = refreshMsToken(refreshToken);
-        XblResponse xbl = getXbl(ms.access_token);
-        XstsResponse xsts = getXsts(xbl.Token);
-        McAuthResponse mc = authenticateMinecraft(getUhs(xbl.DisplayClaims), xsts.Token);
-        McProfile profile = getProfile(mc.access_token);
+        TokenResponse ms    = refreshMsToken(refreshToken);
+        XblResponse xbl     = getXbl(ms.access_token);
+        XstsResponse xsts   = getXsts(xbl.Token);
+        McAuthResponse mc   = authenticateMinecraft(getUhs(xbl.DisplayClaims), xsts.Token);
+        McProfile profile   = getProfile(mc.access_token);
+        String xuid         = getXuid(xbl.DisplayClaims);
 
         long expiresAt = Instant.now().getEpochSecond() + mc.expires_in;
         String newContent = """
@@ -160,10 +161,11 @@ public class MinecraftAuth {
                   refresh_token := "%s"
                   username      := "%s"
                   uuid          := "%s"
+                  xuid          := "%s"
                   client_id     := "%s"
                   expires_at    := %d
                 }
-                """.formatted(mc.access_token, ms.refresh_token, profile.name, profile.id, CLIENT_ID, expiresAt);
+                """.formatted(mc.access_token, ms.refresh_token, profile.name, profile.id, xuid, CLIENT_ID, expiresAt);
 
         Files.writeString(config, newContent);
         log("[Aurora] Session refreshed – %s", profile.name);

@@ -26,8 +26,6 @@ import java.lang.instrument.Instrumentation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.time.LocalDateTime;
 
 import static dev.badkraft.aurora.utils.AuroraLogger.info;
 
@@ -50,8 +48,12 @@ public class RuntimeAgent {
         LOG_DIR = auroraDir.resolve("logs");
 
         try {
-            Files.createDirectories(LOG_DIR);
-        } catch (Exception ignored){}
+            if(!Files.isDirectory(LOG_DIR)) {
+                Files.createDirectories(LOG_DIR);
+            }
+        } catch (Exception ioEx){
+            throw new ExceptionInInitializerError("Failed to create log directory: " + ioEx);
+        }
 
         // now we can instantate the logger without importing any static loading
     }

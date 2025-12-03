@@ -22,10 +22,12 @@
 /// SOFTWARE.
 package dev.badkraft.aurora;
 
-import dev.badkraft.aurora.auth.MinecraftAuth;
 import com.google.gson.*;
-import dev.badkraft.aurora.mapping.MappingBuilder;
 import dev.badkraft.anvil.api.*;
+import dev.badkraft.anvil.core.data.Dialect;
+import dev.badkraft.anvil.data.*;
+import dev.badkraft.aurora.auth.MinecraftAuth;
+import dev.badkraft.aurora.mapping.MappingBuilder;
 
 import java.io.*;
 import java.lang.reflect.Method;
@@ -128,13 +130,13 @@ public class Loader {
         for (String path : entries) {
             urls.add(new File(path).toURI().toURL());
         }
-       URLClassLoader auroraMCLoader = getAuroraClassLoader(urls);
 
-        // Build launch args
-        List<String> launchArgs = buildLaunchArgs(paths, auroraMCLoader);
-        // Launch Minecraft
-        log("Launching ...");
-        try{
+        try {
+            URLClassLoader auroraMCLoader = getAuroraClassLoader(urls);
+            // Build launch args
+            List<String> launchArgs = buildLaunchArgs(paths, auroraMCLoader);
+            // Launch Minecraft
+            log("Launching ...");
             // Launch using the custom classloader
             Class<?> mainClass = auroraMCLoader.loadClass("net.minecraft.client.main.Main");
             Method mainMethod = mainClass.getMethod("main", String[].class);
@@ -153,7 +155,7 @@ public class Loader {
             String clientId,
             String xuId) {}
     private static Session loadSession() throws Exception {
-        Path config = Paths.get("config.aurora");
+        Path config = ROOT_DIR.resolve("config.aurora");
         // if config.aurora does not exist, perform login
         if (!Files.exists(config)) {
             log("No login found. Starting MS Login ...");
@@ -161,28 +163,24 @@ public class Loader {
         }
 
         // and the file will be created
-        AnvilModule module = Anvil.parse(config);
-        AnvilObject auth = module.getObject("auth").asObject();
+        root r = Anvil.load(config, Dialect.AML,"aurora.config").parse();
+        object auth = r.get("auth").asObject();
 
-        String expiresAtStr = auth.getString("expires_at");
-        if (expiresAtStr != null) {
-            // this step is the first time we need to persist changes back to config.aurora
-            long expiresAt = Long.parseLong(expiresAtStr);
-            long now = System.currentTimeMillis() / 1000;
-            if (now >= expiresAt) {
-                log("Token expired. Refreshing...");
-                MinecraftAuth.refreshSession();
-                // this is where we need to be able to update the value and save
-                //content = Files.readString(config); // Re-read after refresh
-            }
+        long expiresAt = auth.get("expires_at").asLong();
+        long now = System.currentTimeMillis() / 1000;
+        if (now >= expiresAt) {
+            log("Token expired. Refreshing...");
+            MinecraftAuth.refreshSession();
+            // this is where we need to be able to update the value and save
+            //content = Files.readString(config); // Re-read after refresh
         }
 
         return new Session(
-                auth.getString("access_token"),
-                auth.getString("username"),
-                auth.getString("uuid").replace("-", ""),
-                auth.getString("client_id"),
-                auth.getString("xuid")
+                auth.get("access_token").asString(),
+                auth.get("username").asString(),
+                auth.get("uuid").asString(),
+                auth.get("client_id").asString(),
+                auth.get("xuid").asString()
         );
     }
     private static String buildClasspathFromVersionJson(Path versionJson, Path dotMinecraft) throws Exception {
